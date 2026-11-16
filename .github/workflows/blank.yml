@@ -1,13 +1,9 @@
-name: Build Final Android APK
-
-on:
-  push:
-  workflow_dispatch:
+name: Build Smooth Android APK
+on: [push, workflow_dispatch]
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -23,16 +19,11 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: '8.10.2'
-
-      - name: Auto-Prepare Project and Inject Permissions
+      - name: Prepare Project and Inject Permissions
         run: |
-          if [ -f "package.json" ]; then
+          if [ -f "package.json" ] && [ ! -d "app" ]; then
             npm install --legacy-peer-deps
-            npx vite build || npm run build
+            npx vite build --base=./ || npm run build
             if [ ! -d "dist" ] && [ -d "build" ]; then
               cp -r build dist
             fi
@@ -44,6 +35,7 @@ jobs:
             else
               npx cap sync android
             fi
+            find android node_modules/@capacitor -name "*.gradle" -exec sed -i 's/VERSION_21/VERSION_17/g' {} + 2>/dev/null || true
             MANIFEST="android/app/src/main/AndroidManifest.xml"
           else
             touch .env
@@ -58,6 +50,11 @@ jobs:
               grep -q "$P" "$MANIFEST" || sed -i "s|<application|<uses-permission android:name=\"android.permission.$P\" />\n    <application|" "$MANIFEST"
             done
           fi
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '9.3.1'
 
       - name: Build Debug APK
         run: |
