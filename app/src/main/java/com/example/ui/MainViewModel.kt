@@ -15,8 +15,10 @@ import com.example.domain.model.ProjectStatus
 import com.example.domain.model.RestorationSettings
 import com.example.domain.model.SmartPreset
 import com.example.domain.model.StudioProject
+import com.example.engine.ai.MultiStageAiPipeline
 import com.example.engine.gl.OffscreenPhotoExporter
 import com.example.engine.gl.OffscreenVideoExporter
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,6 +28,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -41,7 +44,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val mediaStorage = MediaStorageHelper(application)
     private val repository = ProjectRepository(database.projectDao(), mediaStorage)
 
-    private val photoExporter = OffscreenPhotoExporter()
+    private val photoExporter = OffscreenPhotoExporter(application)
     private val videoExporter = OffscreenVideoExporter(application)
 
     val projects: StateFlow<List<StudioProject>> = repository.observeAllProjects()
@@ -63,6 +66,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _activePresetId = MutableStateFlow<String?>(null)
     val activePresetId: StateFlow<String?> = _activePresetId.asStateFlow()
+
+    private val _isAutoAnalyzing = MutableStateFlow(false)
+    val isAutoAnalyzing: StateFlow<Boolean> = _isAutoAnalyzing.asStateFlow()
+
+    private val _autoEnhanceSummary = MutableStateFlow<String?>(null)
+    val autoEnhanceSummary: StateFlow<String?> = _autoEnhanceSummary.asStateFlow()
 
     private val _isImporting = MutableStateFlow(false)
     val isImporting: StateFlow<Boolean> = _isImporting.asStateFlow()
@@ -111,6 +120,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 _activeProject.value = created
                 _activePresetId.value = null
+                _autoEnhanceSummary.value = null
                 onOpened()
             } catch (t: Throwable) {
                 _snackbarMessage.value = "Failed to import media: ${t.localizedMessage ?: "Unknown error"}"
@@ -126,9 +136,41 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (loaded != null) {
                 _activeProject.value = loaded
                 _activePresetId.value = null
+                _autoEnhanceSummary.value = null
                 onOpened()
             } else {
                 _snackbarMessage.value = "Project could not be found."
+            }
+        }
+    }
+
+    fun autoEnhanceCurrentProject() {
+        val current = _activeProject.value ?: return
+        if (_isAutoAnalyzing.value) return
+        viewModelScope.launch {
+            _isAutoAnalyzing.value = true
+            try {
+                val analysis = withContext(Dispatchers.Default) {
+                    MultiStageAiPipeline(getApplication()).use { pipeline ->
+                        pipeline.analyzeMediaSource(
+                            sourcePath = current.sourcePath,
+                            mediaType = current.mediaType,
+                            originalWidth = current.originalWidth,
+                            originalHeight = current.originalHeight,
+                            currentAiMode = current.restoration.aiModelMode,
+                        )
+                    }
+                }
+                val updated = current.copy(restoration = analysis.recommendedSettings)
+                _activeProject.value = updated
+                _activePresetId.value = null
+                _autoEnhanceSummary.value = analysis.summaryBadge
+                scheduleSave(updated)
+                _snackbarMessage.value = "Auto Enhance applied (${analysis.summaryBadge}) — Live Preview updated!"
+            } catch (t: Throwable) {
+                _snackbarMessage.value = "Auto Enhance applied default 5-stage profile"
+            } finally {
+                _isAutoAnalyzing.value = false
             }
         }
     }
@@ -162,6 +204,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
         _activeProject.value = updated
         _activePresetId.value = preset.id
+        _autoEnhanceSummary.value = "Preset: ${preset.name}"
         scheduleSave(updated)
     }
 
@@ -220,6 +263,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             isPaused = false,
             isCompleted = false,
             progress = 0f,
+            statusLabel = "Initializing ${target.restoration.aiModelMode.assetFileName}...",
             outputFilePath = outputFile.absolutePath,
         )
 
@@ -246,6 +290,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 currentFps = p.currentFps,
                                 elapsedMs = elapsed,
                                 estimatedRemainingMs = eta,
+                                statusLabel = p.statusLabel,
                             )
                         },
                     )
@@ -263,10 +308,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 currentFps = p.currentFps,
                                 elapsedMs = p.elapsedMs,
                                 estimatedRemainingMs = p.estimatedRemainingMs,
+                                statusLabel = p.statusLabel,
                             )
                         },
                     )
                 }
+
+                // Automatically save to Pictures/UltraRestore or Movies/UltraRestore via MediaStore
+                val autoGalleryUri = runCatching {
+                    repository.saveExportToGallery(target, outputFile)
+                }.getOrNull()
 
                 repository.updateExportStatus(
                     id = target.id,
@@ -285,6 +336,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     isCompleted = true,
                     progress = 1f,
                     outputFilePath = outputFile.absolutePath,
+                    savedToGalleryUri = autoGalleryUri,
                 )
             } catch (_: InterruptedException) {
                 runCatching { outputFile.delete() }

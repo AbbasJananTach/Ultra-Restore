@@ -21,7 +21,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Download
@@ -31,7 +31,6 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MovieCreation
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.VideoCall
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -52,10 +51,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -68,7 +67,7 @@ import com.example.ui.theme.BrightBorder
 import com.example.ui.theme.CarbonCard
 import com.example.ui.theme.CarbonElevated
 import com.example.ui.theme.CarbonSurface
-import com.example.ui.theme.CrimsonDeep
+import com.example.ui.theme.CrimsonDark
 import com.example.ui.theme.CrimsonGlow
 import com.example.ui.theme.CrimsonMuted
 import com.example.ui.theme.CrimsonRed
@@ -90,8 +89,7 @@ fun HomeDashboardScreen(
     importStatusText: String,
     showOnlyProjectsWorkspace: Boolean,
     onSelectFilter: (ProjectFilter) -> Unit,
-    onPickVideo: () -> Unit,
-    onPickPhoto: () -> Unit,
+    onStartNewProject: () -> Unit,
     onOpenProject: (StudioProject) -> Unit,
     onReExportProject: (StudioProject) -> Unit,
     onRenameProject: (String, String) -> Unit,
@@ -104,17 +102,22 @@ fun HomeDashboardScreen(
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            item {
-                CleanTopStudioHeader()
-            }
-
             if (!showOnlyProjectsWorkspace) {
                 item {
-                    HeroMediaActionCards(
-                        onPickVideo = onPickVideo,
-                        onPickPhoto = onPickPhoto,
+                    CleanTopStudioHeader()
+                }
+
+                item {
+                    UnifiedHeroNewProjectCard(
+                        onStartNewProject = onStartNewProject,
+                    )
+                }
+            } else {
+                item {
+                    ProjectsScreenHeader(
+                        onStartNewProject = onStartNewProject,
                     )
                 }
             }
@@ -130,8 +133,6 @@ fun HomeDashboardScreen(
                 item {
                     EmptyProjectsCard(
                         selectedFilter = selectedFilter,
-                        onPickVideo = onPickVideo,
-                        onPickPhoto = onPickPhoto,
                     )
                 }
             } else {
@@ -152,24 +153,24 @@ fun HomeDashboardScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(MatteBlack.copy(alpha = 0.85f)),
+                    .background(MatteBlack.copy(alpha = 0.88f)),
                 contentAlignment = Alignment.Center,
             ) {
                 Surface(
                     shape = RoundedCornerShape(18.dp),
                     color = CarbonSurface,
-                    border = BorderStroke(1.dp, CrimsonRed),
+                    border = BorderStroke(1.dp, CrimsonGlow),
                 ) {
                     Column(
                         modifier = Modifier.padding(horizontal = 28.dp, vertical = 22.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        CircularProgressIndicator(color = CrimsonRed, strokeWidth = 3.dp)
+                        CircularProgressIndicator(color = CrimsonGlow, strokeWidth = 3.dp)
                         Spacer(Modifier.height(14.dp))
                         Text(
                             text = importStatusText,
                             style = MaterialTheme.typography.titleMedium,
-                            color = CrimsonRed,
+                            color = CrimsonGlow,
                             fontWeight = FontWeight.Bold,
                         )
                         Spacer(Modifier.height(4.dp))
@@ -206,17 +207,17 @@ private fun CleanTopStudioHeader() {
     ) {
         Box(
             modifier = Modifier
-                .size(42.dp)
+                .size(44.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(CarbonSurface)
-                .border(1.dp, CrimsonRed.copy(alpha = 0.75f), RoundedCornerShape(12.dp)),
+                .background(CrimsonDark)
+                .border(1.dp, CrimsonGlow.copy(alpha = 0.8f), RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = Icons.Default.AutoFixHigh,
                 contentDescription = "UltraRestore Logo",
-                tint = CrimsonRed,
-                modifier = Modifier.size(22.dp),
+                tint = CrimsonGlow,
+                modifier = Modifier.size(23.dp),
             )
         }
         Spacer(Modifier.width(12.dp))
@@ -224,7 +225,7 @@ private fun CleanTopStudioHeader() {
             Text(
                 text = "UltraRestore",
                 style = MaterialTheme.typography.headlineMedium,
-                color = CrimsonRed,
+                color = CrimsonGlow,
                 fontWeight = FontWeight.Bold,
             )
             Text(
@@ -237,225 +238,244 @@ private fun CleanTopStudioHeader() {
 }
 
 @Composable
-private fun HeroMediaActionCards(
-    onPickVideo: () -> Unit,
-    onPickPhoto: () -> Unit,
+private fun ProjectsScreenHeader(
+    onStartNewProject: () -> Unit,
 ) {
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        // Card 1: Enhance Video to 1080p
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .clickable(onClick = onPickVideo)
-                .testTag("action_enhance_video"),
-            shape = RoundedCornerShape(16.dp),
-            color = CarbonCard,
-            border = BorderStroke(
-                width = 1.dp,
-                brush = Brush.horizontalGradient(
-                    listOf(CrimsonRed.copy(alpha = 0.85f), SubtleBorder, CrimsonRed.copy(alpha = 0.4f)),
-                ),
-            ),
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f),
         ) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        Brush.horizontalGradient(
-                            colors = listOf(
-                                CrimsonRed.copy(alpha = 0.16f),
-                                CarbonCard,
-                                CarbonCard,
-                            ),
-                        ),
-                    )
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(CrimsonDark)
+                    .border(1.dp, CrimsonGlow.copy(alpha = 0.75f), RoundedCornerShape(11.dp)),
+                contentAlignment = Alignment.Center,
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(46.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(CrimsonMuted)
-                                .border(1.dp, CrimsonRed.copy(alpha = 0.6f), RoundedCornerShape(12.dp)),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.MovieCreation,
-                                contentDescription = "Enhance Video",
-                                tint = CrimsonRed,
-                                modifier = Modifier.size(24.dp),
-                            )
-                        }
-                        Spacer(Modifier.width(14.dp))
-                        Column {
-                            Text(
-                                text = "Enhance Video",
-                                style = MaterialTheme.typography.titleLarge,
-                                color = CrimsonRed,
-                                fontWeight = FontWeight.Bold,
-                            )
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                text = "Deblur • 1080p HD • Up to 60 FPS",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = PureWhite.copy(alpha = 0.85f),
-                            )
-                            Text(
-                                text = "Gallery • Google Photos • Drive",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MutedSilver,
-                            )
-                        }
-                    }
-
-                    Spacer(Modifier.width(10.dp))
-
-                    Button(
-                        onClick = onPickVideo,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = CrimsonRed,
-                            contentColor = PureWhite,
-                        ),
-                        shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
-                        modifier = Modifier.height(40.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.VideoCall,
-                            contentDescription = null,
-                            tint = PureWhite,
-                            modifier = Modifier.size(17.dp),
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            text = "Select Video",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = PureWhite,
-                            fontWeight = FontWeight.Bold,
-                        )
-                    }
-                }
+                Icon(
+                    imageVector = Icons.Default.AutoFixHigh,
+                    contentDescription = "UltraRestore Logo",
+                    tint = CrimsonGlow,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text(
+                    text = "Projects Workspace",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = CrimsonGlow,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = "Saved GPU restoration sessions",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MutedSilver,
+                )
             }
         }
 
-        // Card 2: Restore Old Photo
-        Surface(
+        Spacer(Modifier.width(10.dp))
+
+        Button(
+            onClick = onStartNewProject,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = CrimsonRed,
+                contentColor = PureWhite,
+            ),
+            border = BorderStroke(1.dp, CrimsonGlow),
+            shape = RoundedCornerShape(10.dp),
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+            modifier = Modifier
+                .height(40.dp)
+                .testTag("projects_tab_new_project_button"),
+        ) {
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = null,
+                tint = PureWhite,
+                modifier = Modifier.size(17.dp),
+            )
+            Spacer(Modifier.width(5.dp))
+            Text(
+                text = "New Project",
+                style = MaterialTheme.typography.labelLarge,
+                color = PureWhite,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+    }
+}
+
+@Composable
+private fun UnifiedHeroNewProjectCard(
+    onStartNewProject: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .clickable(onClick = onStartNewProject)
+            .testTag("hero_unified_new_project_card"),
+        shape = RoundedCornerShape(18.dp),
+        color = CarbonCard,
+        border = BorderStroke(
+            width = 1.dp,
+            brush = Brush.horizontalGradient(
+                listOf(CrimsonGlow, BrightBorder, CrimsonGlow.copy(alpha = 0.6f)),
+            ),
+        ),
+    ) {
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .clickable(onClick = onPickPhoto)
-                .testTag("action_restore_photo"),
-            shape = RoundedCornerShape(16.dp),
-            color = CarbonCard,
-            border = BorderStroke(
-                width = 1.dp,
-                brush = Brush.horizontalGradient(
-                    listOf(CrimsonRed.copy(alpha = 0.65f), SubtleBorder, CrimsonRed.copy(alpha = 0.35f)),
-                ),
-            ),
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        Brush.horizontalGradient(
-                            colors = listOf(
-                                CrimsonRed.copy(alpha = 0.12f),
-                                CarbonCard,
-                                CarbonCard,
-                            ),
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            CrimsonDark.copy(alpha = 0.72f),
+                            CarbonCard,
+                            CarbonSurface,
                         ),
+                    ),
+                )
+                .padding(horizontal = 18.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(50.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(CrimsonMuted)
+                        .border(1.dp, CrimsonGlow.copy(alpha = 0.75f), RoundedCornerShape(14.dp)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AutoFixHigh,
+                        contentDescription = null,
+                        tint = CrimsonGlow,
+                        modifier = Modifier.size(26.dp),
                     )
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                }
+                Spacer(Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "New Restoration Project",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = CrimsonGlow,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        text = "1080p 60FPS Video Enhancer • 4x Old Photo Restorer",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = PureWhite,
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = "Mobile Gallery • Google Photos • Google Drive",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MutedSilver,
+                    )
+                }
+            }
+
+            // Pipeline Capability Pills Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(CarbonElevated)
+                        .border(1.dp, SubtleBorder, RoundedCornerShape(10.dp))
+                        .padding(horizontal = 10.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(46.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(CrimsonMuted)
-                                .border(1.dp, CrimsonRed.copy(alpha = 0.6f), RoundedCornerShape(12.dp)),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.PhotoLibrary,
-                                contentDescription = "Restore Old Photo",
-                                tint = CrimsonRed,
-                                modifier = Modifier.size(23.dp),
-                            )
-                        }
-                        Spacer(Modifier.width(14.dp))
-                        Column {
-                            Text(
-                                text = "Restore Old Photo",
-                                style = MaterialTheme.typography.titleLarge,
-                                color = CrimsonRed,
-                                fontWeight = FontWeight.Bold,
-                            )
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                text = "Scratch Fix • Detail Clarity • 4x Scale",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = PureWhite.copy(alpha = 0.85f),
-                            )
-                            Text(
-                                text = "Gallery • Google Photos • Drive",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MutedSilver,
-                            )
-                        }
-                    }
-
-                    Spacer(Modifier.width(10.dp))
-
-                    Button(
-                        onClick = onPickPhoto,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = CrimsonRed,
-                            contentColor = PureWhite,
-                        ),
-                        shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
-                        modifier = Modifier.height(40.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.AddPhotoAlternate,
-                            contentDescription = null,
-                            tint = PureWhite,
-                            modifier = Modifier.size(17.dp),
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            text = "Select Photo",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = PureWhite,
-                            fontWeight = FontWeight.Bold,
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Default.MovieCreation,
+                        contentDescription = null,
+                        tint = CrimsonGlow,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(7.dp))
+                    Text(
+                        text = "Video • 1080p 60FPS",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = PureWhite,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
+
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(CarbonElevated)
+                        .border(1.dp, SubtleBorder, RoundedCornerShape(10.dp))
+                        .padding(horizontal = 10.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PhotoLibrary,
+                        contentDescription = null,
+                        tint = CrimsonGlow,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(7.dp))
+                    Text(
+                        text = "Photo • 4x Scratch Fix",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = PureWhite,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+
+            // Single Primary CTA Button
+            Button(
+                onClick = onStartNewProject,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = CrimsonRed,
+                    contentColor = PureWhite,
+                ),
+                border = BorderStroke(1.dp, CrimsonGlow),
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(vertical = 12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .testTag("start_new_project_button"),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = null,
+                    tint = PureWhite,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "Start New Project",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = PureWhite,
+                    fontWeight = FontWeight.Bold,
+                )
             }
         }
     }
@@ -476,7 +496,7 @@ private fun RecentProjectsHeaderBar(
         Text(
             text = "Recent Projects",
             style = MaterialTheme.typography.headlineSmall,
-            color = CrimsonRed,
+            color = CrimsonGlow,
             fontWeight = FontWeight.Bold,
         )
 
@@ -644,6 +664,7 @@ private fun ProjectWorkspaceCard(
                         containerColor = CrimsonRed,
                         contentColor = PureWhite,
                     ),
+                    border = BorderStroke(1.dp, CrimsonGlow.copy(alpha = 0.7f)),
                     shape = RoundedCornerShape(9.dp),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                     modifier = Modifier
@@ -730,13 +751,12 @@ private fun ProjectWorkspaceCard(
 @Composable
 private fun EmptyProjectsCard(
     selectedFilter: ProjectFilter,
-    onPickVideo: () -> Unit,
-    onPickPhoto: () -> Unit,
 ) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 16.dp)
+            .testTag("empty_projects_card"),
         shape = RoundedCornerShape(16.dp),
         color = CarbonSurface,
         border = BorderStroke(1.dp, SubtleBorder),
@@ -744,58 +764,42 @@ private fun EmptyProjectsCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 24.dp),
+                .padding(horizontal = 24.dp, vertical = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Box(
                 modifier = Modifier
-                    .size(48.dp)
+                    .size(46.dp)
                     .clip(CircleShape)
                     .background(CrimsonMuted)
-                    .border(1.dp, CrimsonRed.copy(alpha = 0.5f), CircleShape),
+                    .border(1.dp, CrimsonGlow.copy(alpha = 0.55f), CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = Icons.Default.FolderOpen,
                     contentDescription = null,
-                    tint = CrimsonRed,
-                    modifier = Modifier.size(24.dp),
+                    tint = CrimsonGlow,
+                    modifier = Modifier.size(22.dp),
                 )
             }
             Spacer(Modifier.height(12.dp))
             Text(
                 text = when (selectedFilter) {
-                    ProjectFilter.ALL -> "No Saved Projects Yet"
+                    ProjectFilter.ALL -> "No Recent Projects Yet"
                     ProjectFilter.VIDEO -> "No Video Projects Yet"
                     ProjectFilter.PHOTO -> "No Photo Projects Yet"
                 },
                 style = MaterialTheme.typography.titleMedium,
-                color = CrimsonRed,
+                color = CrimsonGlow,
                 fontWeight = FontWeight.Bold,
             )
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(6.dp))
             Text(
-                text = "Import a video or vintage photo from Gallery, Google Photos, or Google Drive.",
+                text = "No recent projects yet. Tap Start New Project above to begin.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MutedSilver,
+                textAlign = TextAlign.Center,
             )
-            Spacer(Modifier.height(14.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(
-                    onClick = onPickVideo,
-                    colors = ButtonDefaults.buttonColors(containerColor = CrimsonRed, contentColor = PureWhite),
-                    shape = RoundedCornerShape(10.dp),
-                ) {
-                    Text("Select Video", color = PureWhite, fontWeight = FontWeight.Bold)
-                }
-                Button(
-                    onClick = onPickPhoto,
-                    colors = ButtonDefaults.buttonColors(containerColor = CrimsonRed, contentColor = PureWhite),
-                    shape = RoundedCornerShape(10.dp),
-                ) {
-                    Text("Select Photo", color = PureWhite, fontWeight = FontWeight.Bold)
-                }
-            }
         }
     }
 }

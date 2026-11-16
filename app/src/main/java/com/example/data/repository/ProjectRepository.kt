@@ -5,6 +5,7 @@ import com.example.data.local.ImportSourceType
 import com.example.data.local.MediaStorageHelper
 import com.example.data.local.ProjectDao
 import com.example.data.local.ProjectEntity
+import com.example.domain.model.AiModelMode
 import com.example.domain.model.ExportSettings
 import com.example.domain.model.MediaType
 import com.example.domain.model.ProjectStatus
@@ -45,7 +46,7 @@ class ProjectRepository(
         val defaultResolution = if (mediaType == MediaType.VIDEO) {
             TargetResolution.FHD_1080P
         } else {
-            TargetResolution.SCALE_2X
+            TargetResolution.SCALE_4X
         }
         val defaultRestoration = if (mediaType == MediaType.PHOTO) {
             RestorationSettings(
@@ -55,9 +56,18 @@ class ProjectRepository(
                 clarity = 48f,
                 shadowRecovery = 22f,
                 vibrance = 28f,
+                aiModelMode = AiModelMode.ESRGAN_4X,
             )
         } else {
-            RestorationSettings.Default
+            RestorationSettings(
+                deblur = 48f,
+                sharpness = 56f,
+                denoise = 40f,
+                clarity = 36f,
+                shadowRecovery = 14f,
+                vibrance = 18f,
+                aiModelMode = AiModelMode.VIDEO_ENHANCER,
+            )
         }
 
         val defaultFps = selectSmartDefaultFps(imported.fps)
@@ -79,7 +89,7 @@ class ProjectRepository(
                 fps = defaultFps,
                 motionInterpolation = mediaType == MediaType.VIDEO &&
                     (defaultFps == TargetFps.FPS_60 || defaultFps == TargetFps.FPS_50),
-                bitrateMbps = 18f,
+                bitrateMbps = 24f,
             ),
             status = ProjectStatus.DRAFT,
             lastProgress = 0f,

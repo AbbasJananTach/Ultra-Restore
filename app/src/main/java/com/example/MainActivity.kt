@@ -53,8 +53,8 @@ import com.example.ui.screens.EditorWorkspaceScreen
 import com.example.ui.screens.HomeDashboardScreen
 import com.example.ui.theme.CarbonElevated
 import com.example.ui.theme.CarbonSurface
+import com.example.ui.theme.CrimsonGlow
 import com.example.ui.theme.CrimsonMuted
-import com.example.ui.theme.CrimsonRed
 import com.example.ui.theme.MatteBlack
 import com.example.ui.theme.MutedSilver
 import com.example.ui.theme.PureWhite
@@ -92,13 +92,15 @@ fun UltraRestoreApp(
     val selectedFilter by viewModel.selectedFilter.collectAsStateWithLifecycle()
     val activeProject by viewModel.activeProject.collectAsStateWithLifecycle()
     val activePresetId by viewModel.activePresetId.collectAsStateWithLifecycle()
+    val isAutoAnalyzing by viewModel.isAutoAnalyzing.collectAsStateWithLifecycle()
+    val autoEnhanceSummary by viewModel.autoEnhanceSummary.collectAsStateWithLifecycle()
     val isImporting by viewModel.isImporting.collectAsStateWithLifecycle()
     val importStatusText by viewModel.importStatusText.collectAsStateWithLifecycle()
     val exportState by viewModel.exportState.collectAsStateWithLifecycle()
     val snackbarMessage by viewModel.snackbarMessage.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
-    var pendingPickerMediaType by remember { mutableStateOf<MediaType?>(null) }
+    var showNewProjectWizard by remember { mutableStateOf(false) }
     var activeCloudMediaType by remember { mutableStateOf(MediaType.VIDEO) }
     var activeCloudSourceType by remember { mutableStateOf(ImportSourceType.GOOGLE_PHOTOS_CLOUD) }
 
@@ -149,16 +151,8 @@ fun UltraRestoreApp(
         }
     }
 
-    val openSourcePickerForVideo = {
-        pendingPickerMediaType = MediaType.VIDEO
-    }
-
-    val openSourcePickerForPhoto = {
-        pendingPickerMediaType = MediaType.PHOTO
-    }
-
     val launchSelectedSource: (MediaType, ImportSourceType) -> Unit = { mediaType, sourceType ->
-        pendingPickerMediaType = null
+        showNewProjectWizard = false
         val mime = if (mediaType == MediaType.VIDEO) "video/*" else "image/*"
 
         when (sourceType) {
@@ -232,7 +226,7 @@ fun UltraRestoreApp(
                     snackbarData = data,
                     containerColor = CarbonElevated,
                     contentColor = PureWhite,
-                    actionColor = CrimsonRed,
+                    actionColor = CrimsonGlow,
                 )
             }
         },
@@ -258,8 +252,8 @@ fun UltraRestoreApp(
                         },
                         label = { Text("Studio") },
                         colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = CrimsonRed,
-                            selectedTextColor = CrimsonRed,
+                            selectedIconColor = CrimsonGlow,
+                            selectedTextColor = CrimsonGlow,
                             indicatorColor = CrimsonMuted,
                             unselectedIconColor = MutedSilver,
                             unselectedTextColor = MutedSilver,
@@ -283,8 +277,8 @@ fun UltraRestoreApp(
                         },
                         label = { Text("Projects") },
                         colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = CrimsonRed,
-                            selectedTextColor = CrimsonRed,
+                            selectedIconColor = CrimsonGlow,
+                            selectedTextColor = CrimsonGlow,
                             indicatorColor = CrimsonMuted,
                             unselectedIconColor = MutedSilver,
                             unselectedTextColor = MutedSilver,
@@ -312,8 +306,7 @@ fun UltraRestoreApp(
                         importStatusText = importStatusText,
                         showOnlyProjectsWorkspace = false,
                         onSelectFilter = viewModel::setFilter,
-                        onPickVideo = openSourcePickerForVideo,
-                        onPickPhoto = openSourcePickerForPhoto,
+                        onStartNewProject = { showNewProjectWizard = true },
                         onOpenProject = { project ->
                             viewModel.openProject(project.id) {
                                 navController.navigate(ROUTE_EDITOR) {
@@ -337,8 +330,7 @@ fun UltraRestoreApp(
                         importStatusText = importStatusText,
                         showOnlyProjectsWorkspace = true,
                         onSelectFilter = viewModel::setFilter,
-                        onPickVideo = openSourcePickerForVideo,
-                        onPickPhoto = openSourcePickerForPhoto,
+                        onStartNewProject = { showNewProjectWizard = true },
                         onOpenProject = { project ->
                             viewModel.openProject(project.id) {
                                 navController.navigate(ROUTE_EDITOR) {
@@ -361,6 +353,8 @@ fun UltraRestoreApp(
                             project = project,
                             activePresetId = activePresetId,
                             isExporting = exportState.isRunning,
+                            isAutoAnalyzing = isAutoAnalyzing,
+                            autoEnhanceSummary = autoEnhanceSummary,
                             onBack = {
                                 viewModel.saveProjectStateNow()
                                 navController.popBackStack()
@@ -368,6 +362,7 @@ fun UltraRestoreApp(
                             onRenameProject = { newName ->
                                 viewModel.renameProject(project.id, newName)
                             },
+                            onAutoEnhanceClick = viewModel::autoEnhanceCurrentProject,
                             onUpdateRestoration = viewModel::updateRestoration,
                             onUpdateExportSettings = viewModel::updateExportSettings,
                             onApplyPreset = viewModel::applyPreset,
@@ -383,12 +378,12 @@ fun UltraRestoreApp(
         }
     }
 
-    pendingPickerMediaType?.let { targetMediaType ->
+    if (showNewProjectWizard) {
         MediaSourcePickerDialog(
-            mediaType = targetMediaType,
-            onDismiss = { pendingPickerMediaType = null },
-            onSelectSource = { sourceType ->
-                launchSelectedSource(targetMediaType, sourceType)
+            initialMediaType = null,
+            onDismiss = { showNewProjectWizard = false },
+            onSelectMediaAndSource = { mediaType, sourceType ->
+                launchSelectedSource(mediaType, sourceType)
             },
         )
     }

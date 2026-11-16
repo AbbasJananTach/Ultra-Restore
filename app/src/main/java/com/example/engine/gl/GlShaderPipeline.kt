@@ -189,7 +189,8 @@ class GlShaderPipeline {
                 1f / fboDstW.toFloat(),
                 1f / fboDstH.toFloat(),
             )
-            GLES30.glUniform1f(GLES30.glGetUniformLocation(turboFusedProgram, "uDenoise"), (settings.denoise / 100f).coerceIn(0f, 1f))
+            val combinedCleanStrength = ((settings.denoise * 0.65f + settings.deblock * 0.55f) / 100f).coerceIn(0f, 1f)
+            GLES30.glUniform1f(GLES30.glGetUniformLocation(turboFusedProgram, "uDenoise"), combinedCleanStrength)
             GLES30.glUniform1f(GLES30.glGetUniformLocation(turboFusedProgram, "uDeblur"), (settings.deblur / 100f).coerceIn(0f, 1f))
             GLES30.glUniform1f(GLES30.glGetUniformLocation(turboFusedProgram, "uSharpness"), (settings.sharpness / 100f).coerceIn(0f, 1f))
             GLES30.glUniform1f(GLES30.glGetUniformLocation(turboFusedProgram, "uClarity"), (settings.clarity / 100f).coerceIn(0f, 1f))
@@ -201,7 +202,7 @@ class GlShaderPipeline {
             return
         }
 
-        // Precision Multi-Pass Pipeline (Pass 1 -> Pass 1.5 Upscale -> Pass 2 High-Res Deblur+CAS -> Pass 3 Tone)
+        // Precision Multi-Pass Pipeline (Pass 1 De-Block & Denoise -> Pass 1.5 Upscale -> Pass 2 High-Res Deblur+CAS -> Pass 3 HDR Tone)
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, fbo1)
         GLES30.glViewport(0, 0, fboSrcW, fboSrcH)
         GLES30.glUseProgram(pass1Program)
@@ -213,7 +214,8 @@ class GlShaderPipeline {
             1f / fboSrcW.toFloat(),
             1f / fboSrcH.toFloat(),
         )
-        GLES30.glUniform1f(GLES30.glGetUniformLocation(pass1Program, "uDenoise"), (settings.denoise / 100f).coerceIn(0f, 1f))
+        val combinedDenoiseAndDeblock = ((settings.denoise * 0.65f + settings.deblock * 0.55f) / 100f).coerceIn(0f, 1f)
+        GLES30.glUniform1f(GLES30.glGetUniformLocation(pass1Program, "uDenoise"), combinedDenoiseAndDeblock)
         GLES30.glUniform1i(GLES30.glGetUniformLocation(pass1Program, "uTurboMode"), turboMode.coerceIn(1, 4))
         GLES30.glUniform1f(GLES30.glGetUniformLocation(pass1Program, "uIsPhoto"), if (isPhoto) 1f else 0f)
         GLES30.glUniformMatrix4fv(GLES30.glGetUniformLocation(pass1Program, "uTexMatrix"), 1, false, identityMatrix, 0)

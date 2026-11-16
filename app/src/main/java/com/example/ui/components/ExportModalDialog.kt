@@ -104,7 +104,7 @@ fun ExportModalDialog(
                 .padding(horizontal = 20.dp),
             shape = RoundedCornerShape(20.dp),
             color = CarbonSurface,
-            border = BorderStroke(1.dp, CrimsonRed.copy(alpha = 0.65f)),
+            border = BorderStroke(1.dp, CrimsonGlow.copy(alpha = 0.7f)),
             tonalElevation = 8.dp,
         ) {
             Column(
@@ -127,7 +127,7 @@ fun ExportModalDialog(
                                 else -> "Rendering Media"
                             },
                             style = MaterialTheme.typography.headlineSmall,
-                            color = CrimsonRed,
+                            color = CrimsonGlow,
                             fontWeight = FontWeight.Bold,
                         )
                         Text(
@@ -173,6 +173,7 @@ fun ExportModalDialog(
                     Button(
                         onClick = onDismiss,
                         colors = ButtonDefaults.buttonColors(containerColor = CrimsonRed, contentColor = PureWhite),
+                        border = BorderStroke(1.dp, CrimsonGlow),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text("Close", color = PureWhite, fontWeight = FontWeight.Bold)
@@ -188,7 +189,7 @@ fun ExportModalDialog(
                                 Icon(
                                     imageVector = Icons.Default.CheckCircle,
                                     contentDescription = "Export complete",
-                                    tint = CrimsonRed,
+                                    tint = CrimsonGlow,
                                     modifier = Modifier.size(28.dp),
                                 )
                                 Spacer(Modifier.height(2.dp))
@@ -196,7 +197,7 @@ fun ExportModalDialog(
                             Text(
                                 text = "${(exportState.progress * 100f).roundToInt().coerceIn(0, 100)}%",
                                 style = MaterialTheme.typography.headlineMedium,
-                                color = CrimsonRed,
+                                color = CrimsonGlow,
                                 fontWeight = FontWeight.Bold,
                             )
                             Text(
@@ -207,7 +208,19 @@ fun ExportModalDialog(
                         }
                     }
 
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(14.dp))
+
+                    Text(
+                        text = exportState.statusLabel,
+                        style = MonoTelemetryStyle,
+                        color = CrimsonGlow,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.testTag("export_status_label"),
+                    )
+
+                    Spacer(Modifier.height(10.dp))
 
                     Row(
                         modifier = Modifier
@@ -219,6 +232,10 @@ fun ExportModalDialog(
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
                         TelemetryStat(
+                            label = if (project.mediaType == MediaType.PHOTO) "TILES" else "FRAMES",
+                            value = "${exportState.framesProcessed}/${exportState.totalFrames.coerceAtLeast(1)}",
+                        )
+                        TelemetryStat(
                             label = "ELAPSED",
                             value = formatDurationMs(exportState.elapsedMs),
                         )
@@ -228,7 +245,11 @@ fun ExportModalDialog(
                         )
                         TelemetryStat(
                             label = "SPEED",
-                            value = String.format(Locale.US, "%.1f FPS", exportState.currentFps),
+                            value = String.format(
+                                Locale.US,
+                                if (project.mediaType == MediaType.PHOTO) "%.1f T/s" else "%.1f FPS",
+                                exportState.currentFps,
+                            ),
                         )
                     }
 
@@ -253,6 +274,7 @@ fun ExportModalDialog(
                                 disabledContainerColor = CarbonElevated,
                                 disabledContentColor = StatusGreen,
                             ),
+                            border = BorderStroke(1.dp, if (saved) StatusGreen.copy(alpha = 0.5f) else CrimsonGlow),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -356,6 +378,7 @@ fun ExportModalDialog(
                                     containerColor = CrimsonRed,
                                     contentColor = PureWhite,
                                 ),
+                                border = BorderStroke(1.dp, CrimsonGlow),
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier
                                     .weight(1f)

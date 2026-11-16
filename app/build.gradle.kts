@@ -63,6 +63,9 @@ android {
     compose = true
     buildConfig = true
   }
+  androidResources {
+    noCompress += "tflite"
+  }
   testOptions { unitTests { isIncludeAndroidResources = true } }
   dependenciesInfo {
     includeInApk = false
@@ -71,7 +74,15 @@ android {
 }
 
 // Configure the Secrets Gradle Plugin to use .env and .env.example files
-// to match the convention used in Web projects.
+// and auto-create safe defaults if absent or empty so CI builds never fail.
+val envExampleFile = rootProject.file(".env.example")
+if (!envExampleFile.exists() || envExampleFile.length() == 0L) {
+  envExampleFile.writeText("# Safe default .env.example\n")
+}
+val envFile = rootProject.file(".env")
+if (!envFile.exists() || envFile.length() == 0L) {
+  envFile.writeText("# Safe default .env\n")
+}
 secrets {
   propertiesFileName = ".env"
   defaultPropertiesFileName = ".env.example"
@@ -106,6 +117,10 @@ dependencies {
   implementation(libs.androidx.room.ktx)
   implementation(libs.androidx.room.runtime)
   implementation(libs.coil.compose)
+  implementation("org.tensorflow:tensorflow-lite:2.14.0")
+  implementation("org.tensorflow:tensorflow-lite-gpu:2.14.0")
+  implementation("org.tensorflow:tensorflow-lite-gpu-api:2.14.0")
+  implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
   // implementation(libs.converter.moshi)
   // implementation(libs.firebase.ai)
   // Uncomment to use Firestore:

@@ -1,7 +1,9 @@
 package com.example.data.local
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import com.example.domain.model.AiModelMode
 import com.example.domain.model.ExportSettings
 import com.example.domain.model.MediaType
 import com.example.domain.model.ProjectStatus
@@ -23,12 +25,16 @@ data class ProjectEntity(
     val originalHeight: Int,
     val originalFps: Float,
     val durationMs: Long,
+    @ColumnInfo(defaultValue = "42.0")
+    val deblock: Float = 42f,
     val deblur: Float,
     val sharpness: Float,
     val denoise: Float,
     val clarity: Float,
     val shadowRecovery: Float,
     val vibrance: Float,
+    @ColumnInfo(defaultValue = "ESRGAN_4X")
+    val aiModelMode: String = "ESRGAN_4X",
     val targetResolutionName: String,
     val targetFps: Int,
     val motionInterpolation: Boolean,
@@ -45,6 +51,7 @@ data class ProjectEntity(
         val parsedResolution = runCatching { TargetResolution.valueOf(targetResolutionName) }
             .getOrDefault(TargetResolution.FHD_1080P)
         val parsedStatus = runCatching { ProjectStatus.valueOf(status) }.getOrDefault(ProjectStatus.DRAFT)
+        val parsedAiMode = AiModelMode.fromName(aiModelMode)
 
         return StudioProject(
             id = id,
@@ -58,12 +65,14 @@ data class ProjectEntity(
             originalFps = originalFps,
             durationMs = durationMs,
             restoration = RestorationSettings(
+                deblock = deblock,
                 deblur = deblur,
                 sharpness = sharpness,
                 denoise = denoise,
                 clarity = clarity,
                 shadowRecovery = shadowRecovery,
                 vibrance = vibrance,
+                aiModelMode = parsedAiMode,
             ),
             exportSettings = ExportSettings(
                 resolution = parsedResolution,
@@ -92,12 +101,14 @@ data class ProjectEntity(
             originalHeight = project.originalHeight,
             originalFps = project.originalFps,
             durationMs = project.durationMs,
+            deblock = project.restoration.deblock,
             deblur = project.restoration.deblur,
             sharpness = project.restoration.sharpness,
             denoise = project.restoration.denoise,
             clarity = project.restoration.clarity,
             shadowRecovery = project.restoration.shadowRecovery,
             vibrance = project.restoration.vibrance,
+            aiModelMode = project.restoration.aiModelMode.name,
             targetResolutionName = project.exportSettings.resolution.name,
             targetFps = project.exportSettings.fps.fps,
             motionInterpolation = project.exportSettings.motionInterpolation,

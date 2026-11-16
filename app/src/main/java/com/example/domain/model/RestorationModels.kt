@@ -25,6 +25,37 @@ enum class ProjectStatus(val displayLabel: String) {
     COMPLETED("Completed"),
 }
 
+enum class AiModelMode(
+    val assetFileName: String,
+    val label: String,
+    val shortLabel: String,
+    val description: String,
+) {
+    ESRGAN_4X(
+        assetFileName = "esrgan.tflite",
+        label = "ESRGAN 4x Ultra HD",
+        shortLabel = "ESRGAN 4x",
+        description = "4x Ultra HD Super-Resolution (esrgan.tflite)",
+    ),
+    FACE_RESTORE(
+        assetFileName = "face_restore.tflite",
+        label = "Face & Portrait Restore",
+        shortLabel = "Face Restore",
+        description = "Portrait & Face Detail Reconstruction (face_restore.tflite)",
+    ),
+    VIDEO_ENHANCER(
+        assetFileName = "video_enhancer.tflite",
+        label = "Fast Video Frame Enhancer",
+        shortLabel = "Video AI",
+        description = "Fast Video Denoising & HD Upscaling (video_enhancer.tflite)",
+    );
+
+    companion object {
+        fun fromName(name: String?): AiModelMode =
+            entries.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: ESRGAN_4X
+    }
+}
+
 enum class TargetResolution(
     val label: String,
     val shortLabel: String,
@@ -37,6 +68,7 @@ enum class TargetResolution(
     HD_720P("720p HD (1280x720)", "720p HD", 1280, 720),
     FHD_1080P("1080p Full HD (1920x1080)", "1080p FHD", 1920, 1080),
     QHD_2K("2K QHD (2560x1440)", "2K QHD", 2560, 1440),
+    UHD_4K("4K Ultra HD (3840x2160)", "4K UHD", 3840, 2160),
     SCALE_2X("2x Super Scale", "2x Scale", 0, 0, isScaleMultiplier = true, multiplier = 2, photoOnly = true),
     SCALE_4X("4x Super Scale", "4x Scale", 0, 0, isScaleMultiplier = true, multiplier = 4, photoOnly = true);
 
@@ -74,8 +106,8 @@ enum class TargetResolution(
 
     companion object {
         fun forMediaType(type: MediaType): List<TargetResolution> = when (type) {
-            MediaType.VIDEO -> listOf(HD_720P, FHD_1080P, QHD_2K)
-            MediaType.PHOTO -> listOf(HD_720P, FHD_1080P, QHD_2K, SCALE_2X, SCALE_4X)
+            MediaType.VIDEO -> listOf(HD_720P, FHD_1080P, QHD_2K, UHD_4K)
+            MediaType.PHOTO -> listOf(HD_720P, FHD_1080P, QHD_2K, UHD_4K, SCALE_2X, SCALE_4X)
         }
     }
 }
@@ -103,16 +135,27 @@ enum class TurboSpeed(val multiplier: Int, val label: String, val shortLabel: St
 }
 
 data class RestorationSettings(
-    val deblur: Float = 48f,           // 0..100
-    val sharpness: Float = 56f,        // 0..100
-    val denoise: Float = 40f,          // 0..100
-    val clarity: Float = 36f,          // 0..100
+    val deblock: Float = 42f,          // Stage 1: De-Block Strength (0..100)
+    val deblur: Float = 48f,           // Stage 3: Super-Resolution & Detail Recovery (0..100)
+    val sharpness: Float = 56f,        // Stage 4: Face & Edge Sharpness / CAS (0..100)
+    val denoise: Float = 40f,          // Stage 2: AI Denoise & Smoothness (0..100)
+    val clarity: Float = 36f,          // Stage 5: HDR Color & Contrast (0..100)
     val shadowRecovery: Float = 14f,   // -100..100
     val vibrance: Float = 18f,         // -100..100
+    val aiModelMode: AiModelMode = AiModelMode.ESRGAN_4X,
 ) {
     companion object {
         val Default = RestorationSettings()
-        val Neutral = RestorationSettings(0f, 0f, 0f, 0f, 0f, 0f)
+        val Neutral = RestorationSettings(
+            deblock = 0f,
+            deblur = 0f,
+            sharpness = 0f,
+            denoise = 0f,
+            clarity = 0f,
+            shadowRecovery = 0f,
+            vibrance = 0f,
+            aiModelMode = AiModelMode.ESRGAN_4X,
+        )
     }
 }
 
@@ -120,7 +163,7 @@ data class ExportSettings(
     val resolution: TargetResolution = TargetResolution.FHD_1080P,
     val fps: TargetFps = TargetFps.FPS_60,
     val motionInterpolation: Boolean = true,
-    val bitrateMbps: Float = 18f, // 4..35 Mbps
+    val bitrateMbps: Float = 28f, // 25..35 Mbps High-Profile H.264 default
     val turboSpeed: TurboSpeed = TurboSpeed.X3,
     val photoFormatPng: Boolean = true,
 )
@@ -139,67 +182,77 @@ object SmartPresets {
         SmartPreset(
             id = "480p_to_1080p",
             name = "480p to 1080p Crisp Fix",
-            subtitle = "Balanced deblock + CAS edge sharpen for SD footage",
+            subtitle = "5-Stage AI deblock + ESRGAN edge sharpen for SD footage",
             restoration = RestorationSettings(
+                deblock = 62f,
                 deblur = 55f,
                 sharpness = 65f,
                 denoise = 48f,
                 clarity = 35f,
                 shadowRecovery = 10f,
                 vibrance = 15f,
+                aiModelMode = AiModelMode.VIDEO_ENHANCER,
             ),
             recommendedFps = TargetFps.FPS_60,
         ),
         SmartPreset(
             id = "heavy_blur",
             name = "Heavy Blur Recovery",
-            subtitle = "Aggressive multi-scale high-frequency edge rebuild",
+            subtitle = "Aggressive ESRGAN neural edge rebuild & unsharp recovery",
             restoration = RestorationSettings(
+                deblock = 48f,
                 deblur = 88f,
                 sharpness = 80f,
                 denoise = 35f,
                 clarity = 45f,
                 shadowRecovery = 8f,
                 vibrance = 10f,
+                aiModelMode = AiModelMode.ESRGAN_4X,
             ),
         ),
         SmartPreset(
             id = "vintage_photo",
             name = "Old Vintage Photo Revival",
-            subtitle = "Removes haze, restores faded tones & lifts grain",
+            subtitle = "Face Restore AI + scratch healing & faded tone recovery",
             restoration = RestorationSettings(
+                deblock = 54f,
                 deblur = 52f,
                 sharpness = 58f,
                 denoise = 62f,
                 clarity = 74f,
                 shadowRecovery = 32f,
                 vibrance = 44f,
+                aiModelMode = AiModelMode.FACE_RESTORE,
             ),
         ),
         SmartPreset(
             id = "low_light",
             name = "Low-Light Clean & Sharp",
-            subtitle = "Deep shadow lift with strong bilateral chroma denoise",
+            subtitle = "Deep shadow lift with neural bilateral chroma denoise",
             restoration = RestorationSettings(
+                deblock = 58f,
                 deblur = 42f,
                 sharpness = 48f,
                 denoise = 78f,
                 clarity = 30f,
                 shadowRecovery = 65f,
                 vibrance = 20f,
+                aiModelMode = AiModelMode.VIDEO_ENHANCER,
             ),
         ),
         SmartPreset(
             id = "60fps_ultra_hd",
             name = "60 FPS Ultra Smooth HD",
-            subtitle = "Motion frame blending + crisp cinema contrast",
+            subtitle = "Motion optical frame blending + ESRGAN cinema contrast",
             restoration = RestorationSettings(
+                deblock = 40f,
                 deblur = 50f,
                 sharpness = 62f,
                 denoise = 38f,
                 clarity = 42f,
                 shadowRecovery = 16f,
                 vibrance = 24f,
+                aiModelMode = AiModelMode.ESRGAN_4X,
             ),
             recommendedFps = TargetFps.FPS_60,
             recommendedMotionInterpolation = true,
@@ -241,10 +294,10 @@ data class StudioProject(
 
     val outputSummaryTag: String
         get() = if (mediaType == MediaType.VIDEO) {
-            "$inputResolutionTag -> ${exportSettings.resolution.shortLabel} | ${exportSettings.fps.fps} FPS"
+            "$inputResolutionTag -> ${exportSettings.resolution.shortLabel} | ${exportSettings.fps.fps} FPS | ${restoration.aiModelMode.shortLabel}"
         } else {
             val (outW, outH) = exportSettings.resolution.computeOutputSize(originalWidth, originalHeight)
-            "$inputResolutionTag -> ${outW}x${outH}"
+            "$inputResolutionTag -> ${outW}x${outH} | ${restoration.aiModelMode.shortLabel}"
         }
 }
 
@@ -259,6 +312,7 @@ data class ExportProgressState(
     val currentFps: Float = 0f,
     val framesProcessed: Int = 0,
     val totalFrames: Int = 0,
+    val statusLabel: String = "TFLite GPU Active",
     val outputFilePath: String? = null,
     val savedToGalleryUri: String? = null,
     val errorMessage: String? = null,

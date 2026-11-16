@@ -85,6 +85,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.example.domain.model.AiModelMode
 import com.example.domain.model.ExportSettings
 import com.example.domain.model.MediaType
 import com.example.domain.model.RestorationSettings
@@ -101,6 +102,7 @@ import com.example.ui.components.StudioSlider
 import com.example.ui.theme.BrightBorder
 import com.example.ui.theme.CarbonElevated
 import com.example.ui.theme.CarbonSurface
+import com.example.ui.theme.CrimsonDark
 import com.example.ui.theme.CrimsonGlow
 import com.example.ui.theme.CrimsonRed
 import com.example.ui.theme.MatteBlack
@@ -123,8 +125,11 @@ fun EditorWorkspaceScreen(
     project: StudioProject,
     activePresetId: String?,
     isExporting: Boolean,
+    isAutoAnalyzing: Boolean = false,
+    autoEnhanceSummary: String? = null,
     onBack: () -> Unit,
     onRenameProject: (String) -> Unit,
+    onAutoEnhanceClick: () -> Unit = {},
     onUpdateRestoration: ((RestorationSettings) -> RestorationSettings) -> Unit,
     onUpdateExportSettings: ((ExportSettings) -> ExportSettings) -> Unit,
     onApplyPreset: (SmartPreset) -> Unit,
@@ -214,7 +219,7 @@ fun EditorWorkspaceScreen(
             .fillMaxSize()
             .background(MatteBlack),
     ) {
-        // Compact Top Studio Bar with Crimson Red Export Button & White Text
+        // Compact Top Studio Bar with Crimson Red Export HD Button & White Text
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -252,7 +257,7 @@ fun EditorWorkspaceScreen(
                         Text(
                             text = project.name,
                             style = MaterialTheme.typography.titleMedium,
-                            color = CrimsonRed,
+                            color = CrimsonGlow,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -287,6 +292,7 @@ fun EditorWorkspaceScreen(
                     containerColor = CrimsonRed,
                     contentColor = PureWhite,
                 ),
+                border = BorderStroke(1.dp, CrimsonGlow),
                 shape = RoundedCornerShape(10.dp),
                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
                 modifier = Modifier
@@ -295,7 +301,7 @@ fun EditorWorkspaceScreen(
             ) {
                 Icon(Icons.Default.Download, contentDescription = null, tint = PureWhite, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Export", style = MaterialTheme.typography.labelLarge, color = PureWhite, fontWeight = FontWeight.Bold)
+                Text("Export HD", style = MaterialTheme.typography.labelLarge, color = PureWhite, fontWeight = FontWeight.Bold)
             }
         }
 
@@ -349,7 +355,7 @@ fun EditorWorkspaceScreen(
                     .pointerInput(widthPx) {
                         detectDragGestures { change, dragAmount ->
                             change.consume()
-                            splitPos = (splitPos + dragAmount.x / widthPx).coerceIn(0.05f, 0.95f)
+                            splitPos = (splitPos + dragAmount.x / widthPx).coerceIn(0.02f, 0.98f)
                         }
                     }
                     .testTag("split_wipe_slider"),
@@ -383,18 +389,19 @@ fun EditorWorkspaceScreen(
                 }
             }
 
-            // ORIGINAL & ENHANCED Top Corner Badges
+            // ORIGINAL & ENHANCED Top Corner Badges (Tap to toggle full Before / Split / After view)
             Box(
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .padding(10.dp)
                     .clip(RoundedCornerShape(6.dp))
                     .background(CarbonSurface.copy(alpha = 0.85f))
-                    .border(1.dp, BrightBorder, RoundedCornerShape(6.dp))
+                    .border(1.dp, if (splitPos > 0.9f) CrimsonGlow else BrightBorder, RoundedCornerShape(6.dp))
+                    .clickable { splitPos = if (splitPos > 0.85f) 0.5f else 0.98f }
                     .padding(horizontal = 8.dp, vertical = 3.dp),
             ) {
                 Text(
-                    text = "ORIGINAL",
+                    text = "BEFORE (ORIGINAL)",
                     style = MonoTelemetryStyle,
                     color = PureWhite,
                 )
@@ -406,18 +413,19 @@ fun EditorWorkspaceScreen(
                     .padding(10.dp)
                     .clip(RoundedCornerShape(6.dp))
                     .background(CarbonSurface.copy(alpha = 0.9f))
-                    .border(1.dp, CrimsonRed, RoundedCornerShape(6.dp))
+                    .border(1.dp, CrimsonGlow, RoundedCornerShape(6.dp))
+                    .clickable { splitPos = if (splitPos < 0.15f) 0.5f else 0.02f }
                     .padding(horizontal = 8.dp, vertical = 3.dp),
             ) {
                 Text(
-                    text = "ENHANCED",
+                    text = "AFTER (5-STAGE AI)",
                     style = MonoTelemetryStyle,
-                    color = CrimsonRed,
+                    color = CrimsonGlow,
                     fontWeight = FontWeight.Bold,
                 )
             }
 
-            // Floating Bottom Overlay for Small Inner Editing Tool Controls (Zoom 1x/2x/4x, Play/Pause, Red Seekbar, Mute/Unmute)
+            // Floating Bottom Overlay for Before/After Quick Toggle, Zoom 1x/2x/4x, and Video Controls
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -425,34 +433,67 @@ fun EditorWorkspaceScreen(
                     .padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                // Small Inner Zoom Toggle Buttons
                 Row(
-                    modifier = Modifier.align(Alignment.End),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    listOf(1f, 2f, 4f).forEach { targetZ ->
-                        val active = kotlin.math.abs(zoomLevel - targetZ) < 0.25f
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(7.dp))
-                                .background(if (active) CrimsonRed else CarbonElevated.copy(alpha = 0.92f))
-                                .border(1.dp, if (active) PureWhite else BrightBorder, RoundedCornerShape(7.dp))
-                                .clickable {
-                                    zoomLevel = targetZ
-                                    if (targetZ == 1f) {
-                                        panX = 0f
-                                        panY = 0f
-                                    }
+                    // Quick Before / Split / After Live Preview Toggle Pill
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(7.dp))
+                            .background(CarbonElevated.copy(alpha = 0.92f))
+                            .border(1.dp, CrimsonGlow, RoundedCornerShape(7.dp))
+                            .clickable {
+                                splitPos = when {
+                                    splitPos < 0.2f -> 0.5f
+                                    splitPos < 0.8f -> 0.98f
+                                    else -> 0.02f
                                 }
-                                .padding(horizontal = 9.dp, vertical = 4.dp)
-                                .testTag("zoom_${targetZ.toInt()}x_button"),
-                        ) {
-                            Text(
-                                text = "${targetZ.toInt()}x",
-                                style = MonoTelemetryStyle,
-                                color = PureWhite,
-                                fontWeight = FontWeight.Bold,
-                            )
+                            }
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                            .testTag("before_after_toggle_button"),
+                    ) {
+                        Text(
+                            text = when {
+                                splitPos < 0.2f -> "View: Full After"
+                                splitPos > 0.8f -> "View: Full Before"
+                                else -> "View: 50/50 Split"
+                            },
+                            style = MonoTelemetryStyle,
+                            color = PureWhite,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+
+                    // Small Inner Zoom Toggle Buttons
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        listOf(1f, 2f, 4f).forEach { targetZ ->
+                            val active = kotlin.math.abs(zoomLevel - targetZ) < 0.25f
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(7.dp))
+                                    .background(if (active) CrimsonRed else CarbonElevated.copy(alpha = 0.92f))
+                                    .border(1.dp, if (active) PureWhite else BrightBorder, RoundedCornerShape(7.dp))
+                                    .clickable {
+                                        zoomLevel = targetZ
+                                        if (targetZ == 1f) {
+                                            panX = 0f
+                                            panY = 0f
+                                        }
+                                    }
+                                    .padding(horizontal = 9.dp, vertical = 4.dp)
+                                    .testTag("zoom_${targetZ.toInt()}x_button"),
+                            ) {
+                                Text(
+                                    text = "${targetZ.toInt()}x",
+                                    style = MonoTelemetryStyle,
+                                    color = PureWhite,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            }
                         }
                     }
                 }
@@ -540,11 +581,11 @@ fun EditorWorkspaceScreen(
 
         HorizontalDivider(color = SubtleBorder, thickness = 1.dp)
 
-        // Compact Bottom Control Panel (290.dp) with Red Active Tab Title & White Unselected Tool Text
+        // Compact Bottom Control Panel (310.dp) with Prominent Auto Enhance + 5-Stage Sliders
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(290.dp)
+                .height(310.dp)
                 .background(CarbonSurface),
         ) {
             Row(
@@ -564,8 +605,8 @@ fun EditorWorkspaceScreen(
                             .clickable { selectedTab = tab }
                             .testTag("editor_tab_${tab.name.lowercase()}"),
                         shape = RoundedCornerShape(9.dp),
-                        color = if (selected) CarbonSurface else CarbonElevated,
-                        border = BorderStroke(1.dp, if (selected) CrimsonRed else BrightBorder),
+                        color = if (selected) CrimsonDark else CarbonElevated,
+                        border = BorderStroke(1.dp, if (selected) CrimsonGlow else BrightBorder),
                     ) {
                         Row(
                             modifier = Modifier.padding(vertical = 8.dp, horizontal = 6.dp),
@@ -579,14 +620,14 @@ fun EditorWorkspaceScreen(
                                     ControlTab.PRESETS -> Icons.Default.AutoAwesome
                                 },
                                 contentDescription = null,
-                                tint = if (selected) CrimsonRed else PureWhite,
+                                tint = if (selected) CrimsonGlow else PureWhite,
                                 modifier = Modifier.size(14.dp),
                             )
                             Spacer(Modifier.width(4.dp))
                             Text(
                                 text = tab.title,
                                 style = MaterialTheme.typography.labelLarge,
-                                color = if (selected) CrimsonRed else PureWhite,
+                                color = if (selected) CrimsonGlow else PureWhite,
                                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -605,6 +646,9 @@ fun EditorWorkspaceScreen(
                 when (selectedTab) {
                     ControlTab.RESTORATION -> RestorationSlidersTab(
                         settings = project.restoration,
+                        isAutoAnalyzing = isAutoAnalyzing,
+                        autoEnhanceSummary = autoEnhanceSummary,
+                        onAutoEnhanceClick = onAutoEnhanceClick,
                         onUpdate = onUpdateRestoration,
                     )
                     ControlTab.QUALITY -> QualityTurboTab(
@@ -637,22 +681,129 @@ fun EditorWorkspaceScreen(
 @Composable
 private fun RestorationSlidersTab(
     settings: RestorationSettings,
+    isAutoAnalyzing: Boolean,
+    autoEnhanceSummary: String?,
+    onAutoEnhanceClick: () -> Unit,
     onUpdate: ((RestorationSettings) -> RestorationSettings) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Prominent Auto Enhance Card -> Analyzes Media, Sets 5 Stage Sliders & Updates Live Preview Immediately
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = CarbonElevated,
+            border = BorderStroke(1.dp, CrimsonGlow.copy(alpha = 0.75f)),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "5-Stage Sequential AI Pipeline",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = CrimsonGlow,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        text = autoEnhanceSummary ?: "Auto-detect compression blocks, noise, blur & HDR range",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = PureWhite.copy(alpha = 0.85f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Spacer(Modifier.width(10.dp))
+                Button(
+                    onClick = onAutoEnhanceClick,
+                    enabled = !isAutoAnalyzing,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = CrimsonRed,
+                        contentColor = PureWhite,
+                    ),
+                    border = BorderStroke(1.dp, CrimsonGlow),
+                    shape = RoundedCornerShape(9.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                    modifier = Modifier
+                        .height(36.dp)
+                        .testTag("auto_enhance_button"),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        tint = PureWhite,
+                        modifier = Modifier.size(15.dp),
+                    )
+                    Spacer(Modifier.width(5.dp))
+                    Text(
+                        text = if (isAutoAnalyzing) "Analyzing..." else "Auto Enhance",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = PureWhite,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
+        }
+
+        // Multi-Model TFLite AI Engine Selector
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(CarbonElevated)
+                .border(1.dp, SubtleBorder, RoundedCornerShape(12.dp))
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Primary Super-Resolution Focus",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = CrimsonGlow,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = "stage1..5.tflite (GPU)",
+                    style = MonoTelemetryStyle,
+                    color = MutedSilver,
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                AiModelMode.entries.forEach { mode ->
+                    StudioPillButton(
+                        text = mode.shortLabel,
+                        selected = settings.aiModelMode == mode,
+                        onClick = { onUpdate { it.copy(aiModelMode = mode) } },
+                        modifier = Modifier.weight(1f),
+                        testTag = "ai_model_pill_${mode.name.lowercase()}",
+                    )
+                }
+            }
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "Restoration",
+                text = "Restoration (Fine-Tune Live Preview)",
                 style = MaterialTheme.typography.titleMedium,
-                color = CrimsonRed,
+                color = CrimsonGlow,
                 fontWeight = FontWeight.Bold,
             )
             TextButton(
-                onClick = { onUpdate { RestorationSettings.Default } },
+                onClick = { onUpdate { RestorationSettings.Default.copy(aiModelMode = it.aiModelMode) } },
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                 modifier = Modifier.testTag("reset_all_sliders_button"),
             ) {
@@ -662,28 +813,20 @@ private fun RestorationSlidersTab(
             }
         }
 
+        // Stage 1: De-Block Strength (0% - 100%)
         StudioSlider(
-            label = "Deblur & Edge Rebuild",
-            value = settings.deblur,
+            label = "1. De-Block Strength (stage1_deblock)",
+            value = settings.deblock,
             valueRange = 0f..100f,
-            defaultValue = RestorationSettings.Default.deblur,
-            icon = Icons.Default.BlurOff,
-            testTag = "slider_deblur",
-            onValueChange = { v -> onUpdate { it.copy(deblur = v) } },
+            defaultValue = RestorationSettings.Default.deblock,
+            icon = Icons.Default.Details,
+            testTag = "slider_deblock",
+            onValueChange = { v -> onUpdate { it.copy(deblock = v) } },
         )
 
+        // Stage 2: AI Denoise & Smoothness (0% - 100%)
         StudioSlider(
-            label = "Fine Detail Sharpness (CAS)",
-            value = settings.sharpness,
-            valueRange = 0f..100f,
-            defaultValue = RestorationSettings.Default.sharpness,
-            icon = Icons.Default.CenterFocusStrong,
-            testTag = "slider_sharpness",
-            onValueChange = { v -> onUpdate { it.copy(sharpness = v) } },
-        )
-
-        StudioSlider(
-            label = "Denoise & Deblock",
+            label = "2. AI Denoise & Smoothness (stage2_denoise)",
             value = settings.denoise,
             valueRange = 0f..100f,
             defaultValue = RestorationSettings.Default.denoise,
@@ -692,8 +835,31 @@ private fun RestorationSlidersTab(
             onValueChange = { v -> onUpdate { it.copy(denoise = v) } },
         )
 
+        // Stage 3: Super-Resolution & Detail Recovery (0% - 100%)
         StudioSlider(
-            label = "Clarity & Dehaze",
+            label = "3. Super-Resolution & Detail Recovery (stage3_esrgan)",
+            value = settings.deblur,
+            valueRange = 0f..100f,
+            defaultValue = RestorationSettings.Default.deblur,
+            icon = Icons.Default.BlurOff,
+            testTag = "slider_deblur",
+            onValueChange = { v -> onUpdate { it.copy(deblur = v) } },
+        )
+
+        // Stage 4: Face & Edge Sharpness / CAS (0% - 100%)
+        StudioSlider(
+            label = "4. Face & Edge Sharpness / CAS (stage4_face_detail)",
+            value = settings.sharpness,
+            valueRange = 0f..100f,
+            defaultValue = RestorationSettings.Default.sharpness,
+            icon = Icons.Default.CenterFocusStrong,
+            testTag = "slider_sharpness",
+            onValueChange = { v -> onUpdate { it.copy(sharpness = v) } },
+        )
+
+        // Stage 5: HDR Color & Contrast (0% - 100%)
+        StudioSlider(
+            label = "5. HDR Color & Contrast (stage5_hdr_color)",
             value = settings.clarity,
             valueRange = 0f..100f,
             defaultValue = RestorationSettings.Default.clarity,
@@ -748,7 +914,7 @@ private fun QualityTurboTab(
                 Text(
                     text = "Quality & FPS",
                     style = MaterialTheme.typography.titleMedium,
-                    color = CrimsonRed,
+                    color = CrimsonGlow,
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
@@ -780,7 +946,7 @@ private fun QualityTurboTab(
                 Text(
                     text = "Frame Rate",
                     style = MaterialTheme.typography.titleSmall,
-                    color = CrimsonRed,
+                    color = CrimsonGlow,
                     fontWeight = FontWeight.Bold,
                 )
                 FlowRow(
@@ -816,7 +982,7 @@ private fun QualityTurboTab(
                                 color = PureWhite,
                             )
                             Text(
-                                text = "Frame blending for 50/60 FPS exports",
+                                text = "Optical frame blending for 50/60 FPS exports",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MutedSilver,
                             )
@@ -837,13 +1003,13 @@ private fun QualityTurboTab(
                 }
             }
 
-            // 3. Bitrate / Quality Controller Slider
+            // 3. Bitrate / Quality Controller Slider (H.264 High Profile 20..50 Mbps)
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 StudioSlider(
-                    label = "Target Video Bitrate",
+                    label = "Target H.264 High-Profile Bitrate",
                     value = exp.bitrateMbps,
-                    valueRange = 4f..35f,
-                    defaultValue = 18f,
+                    valueRange = 8f..50f,
+                    defaultValue = 24f,
                     icon = Icons.Default.Details,
                     unitSuffix = " Mbps",
                     testTag = "slider_bitrate",
@@ -854,13 +1020,13 @@ private fun QualityTurboTab(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     listOf(
-                        "Standard (10M)" to 10f,
-                        "High (18M)" to 18f,
-                        "Ultra (30M)" to 30f,
+                        "20M (HD)" to 20f,
+                        "35M (Ultra)" to 35f,
+                        "50M (Master)" to 50f,
                     ).forEach { (label, mbps) ->
                         StudioPillButton(
                             text = label,
-                            selected = kotlin.math.abs(exp.bitrateMbps - mbps) < 1.5f,
+                            selected = kotlin.math.abs(exp.bitrateMbps - mbps) < 2.0f,
                             onClick = { onUpdate { it.copy(bitrateMbps = mbps) } },
                             modifier = Modifier.weight(1f),
                         )
@@ -871,12 +1037,12 @@ private fun QualityTurboTab(
             // 4. High-Speed Turbo Render Mode
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Bolt, contentDescription = null, tint = CrimsonRed, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Bolt, contentDescription = null, tint = CrimsonGlow, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))
                     Text(
                         text = "Turbo Hardware Render Speed",
                         style = MaterialTheme.typography.titleSmall,
-                        color = CrimsonRed,
+                        color = CrimsonGlow,
                         fontWeight = FontWeight.Bold,
                     )
                 }
@@ -899,7 +1065,7 @@ private fun QualityTurboTab(
                 Text(
                     text = "Photo Export Format",
                     style = MaterialTheme.typography.titleSmall,
-                    color = CrimsonRed,
+                    color = CrimsonGlow,
                     fontWeight = FontWeight.Bold,
                 )
                 Row(
@@ -935,7 +1101,7 @@ private fun SmartPresetsTab(
         Text(
             text = "Presets",
             style = MaterialTheme.typography.titleMedium,
-            color = CrimsonRed,
+            color = CrimsonGlow,
             fontWeight = FontWeight.Bold,
         )
 
@@ -949,7 +1115,7 @@ private fun SmartPresetsTab(
                     .testTag("preset_card_${preset.id}"),
                 shape = RoundedCornerShape(12.dp),
                 color = CarbonElevated,
-                border = BorderStroke(1.dp, if (selected) CrimsonRed else BrightBorder),
+                border = BorderStroke(1.dp, if (selected) CrimsonGlow else BrightBorder),
             ) {
                 Row(
                     modifier = Modifier
@@ -962,7 +1128,7 @@ private fun SmartPresetsTab(
                         Text(
                             text = preset.name,
                             style = MaterialTheme.typography.titleSmall,
-                            color = if (selected) CrimsonRed else PureWhite,
+                            color = if (selected) CrimsonGlow else PureWhite,
                             fontWeight = FontWeight.Bold,
                         )
                         Spacer(Modifier.height(2.dp))
