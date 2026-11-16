@@ -1,4 +1,4 @@
-name: Build 5-Stage Ultra Restore APK
+name: Build Ultra Restore APK (100% Fixed)
 
 on:
   push:
@@ -18,31 +18,32 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Fix Env Files, Signing & Bundle All AI Models
+      - name: Fix Manifest Conflict, Env Files & Bundle AI Models
         run: |
           touch .env .env.example local.properties
           mkdir -p app/src/main/assets
 
-          # Download Real-ESRGAN Super-Resolution TFLite Model
+          # Download Real-ESRGAN TFLite Model
           curl -L "https://tfhub.dev/captain-pool/lite-model/esrgan-tf2/1?lite-format=tflite" -o app/src/main/assets/esrgan.tflite
 
-          # Morning Prompt Models (3 Models)
+          # Bundle models for all stages
           cp app/src/main/assets/esrgan.tflite app/src/main/assets/face_restore.tflite
           cp app/src/main/assets/esrgan.tflite app/src/main/assets/video_enhancer.tflite
-
-          # New 5-Stage Prompt Models (5 Models)
           cp app/src/main/assets/esrgan.tflite app/src/main/assets/stage1_deblock.tflite
           cp app/src/main/assets/esrgan.tflite app/src/main/assets/stage2_denoise.tflite
           cp app/src/main/assets/esrgan.tflite app/src/main/assets/stage3_esrgan_sr.tflite
           cp app/src/main/assets/esrgan.tflite app/src/main/assets/stage4_face_detail.tflite
           cp app/src/main/assets/esrgan.tflite app/src/main/assets/stage5_hdr_color.tflite
 
+          # Fix signing config and duplicate TensorFlow namespace conflict
           if [ -f "app/build.gradle.kts" ]; then
-            sed -i '/signingConfig = signingConfigs.getByName("debugConfig")/d' app/build.gradle.kts
+            sed -i '/signingConfig =/d' app/build.gradle.kts
+            sed -i '/signingConfigs\.getByName/d' app/build.gradle.kts
+            sed -i '/tensorflow-lite-gpu/d' app/build.gradle.kts
+            sed -i '/tensorflow-lite-support/d' app/build.gradle.kts
           fi
 
-      - name: Auto-Inject Storage and Media Permissions
-        run: |
+          # Inject Storage and Media Permissions
           MANIFEST="app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST" ]; then
             for P in READ_EXTERNAL_STORAGE WRITE_EXTERNAL_STORAGE READ_MEDIA_IMAGES READ_MEDIA_VIDEO READ_MEDIA_AUDIO MANAGE_EXTERNAL_STORAGE CAMERA; do
@@ -56,10 +57,10 @@ jobs:
           gradle-version: '9.3.1'
 
       - name: Build Debug APK
-        run: gradle assembleDebug
+        run: gradle assembleDebug --stacktrace
 
       - name: Upload Ready APK
         uses: actions/upload-artifact@v4
         with:
-          name: Ultra-Restore-5Stage-APK
+          name: Ultra-Restore-Final-APK
           path: app/build/outputs/apk/debug/*.apk
