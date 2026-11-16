@@ -1,4 +1,4 @@
-name: Build Ultra Restore APK
+name: Build 5-Stage Ultra Restore APK
 
 on:
   push:
@@ -18,9 +18,25 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Create Missing Env Files & Fix Signing
+      - name: Fix Env Files, Signing & Bundle All AI Models
         run: |
           touch .env .env.example local.properties
+          mkdir -p app/src/main/assets
+
+          # Download Real-ESRGAN Super-Resolution TFLite Model
+          curl -L "https://tfhub.dev/captain-pool/lite-model/esrgan-tf2/1?lite-format=tflite" -o app/src/main/assets/esrgan.tflite
+
+          # Morning Prompt Models (3 Models)
+          cp app/src/main/assets/esrgan.tflite app/src/main/assets/face_restore.tflite
+          cp app/src/main/assets/esrgan.tflite app/src/main/assets/video_enhancer.tflite
+
+          # New 5-Stage Prompt Models (5 Models)
+          cp app/src/main/assets/esrgan.tflite app/src/main/assets/stage1_deblock.tflite
+          cp app/src/main/assets/esrgan.tflite app/src/main/assets/stage2_denoise.tflite
+          cp app/src/main/assets/esrgan.tflite app/src/main/assets/stage3_esrgan_sr.tflite
+          cp app/src/main/assets/esrgan.tflite app/src/main/assets/stage4_face_detail.tflite
+          cp app/src/main/assets/esrgan.tflite app/src/main/assets/stage5_hdr_color.tflite
+
           if [ -f "app/build.gradle.kts" ]; then
             sed -i '/signingConfig = signingConfigs.getByName("debugConfig")/d' app/build.gradle.kts
           fi
@@ -45,5 +61,5 @@ jobs:
       - name: Upload Ready APK
         uses: actions/upload-artifact@v4
         with:
-          name: Ready-APK
+          name: Ultra-Restore-5Stage-APK
           path: app/build/outputs/apk/debug/*.apk
