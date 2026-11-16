@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">UltraRestore</string>
+    <string name="studio_brand_title">UltraRestore Studio</string>
+    <string name="studio_tagline">OFFLINE GPU RESTORATION ENGINE</string>
+    <string name="action_enhance_video">Enhance Video to 1080p</string>
+    <string name="action_restore_photo">Restore Old Photo</string>
+    <string name="tab_home">Studio</string>
+    <string name="tab_projects">Projects</string>
+    <string name="badge_original">ORIGINAL</string>
+    <string name="badge_enhanced">ENHANCED</string>
+</resources>

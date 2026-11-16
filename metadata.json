@@ -1,0 +1,6 @@
+{
+  "name": "UltraRestore",
+  "description": "100% offline GPU-accelerated video and vintage photo restoration studio using multi-pass OpenGL ES 3.0 GLSL shaders.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
